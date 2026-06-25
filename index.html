@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dogpile v2 — Queue-Based Multi-Agent Terminal</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --bg2: #12121a;
+    --bg3: #1a1a26;
+    --bg4: #222233;
+    --brd: #2a2a3d;
+    --brd2: #4a4a6a;
+    --t1: #e8e8f0;
+    --t2: #8888a8;
+    --t3: #55556a;
+    --grn: #00ff88;
+    --grn2: #00cc6a;
+    --grn-g: rgba(0,255,136,0.15);
+    --amb: #ffaa00;
+    --amb-g: rgba(255,170,0,0.12);
+    --red: #ff4466;
+    --red-g: rgba(255,68,102,0.12);
+    --blu: #4488ff;
+    --blu-g: rgba(68,136,255,0.12);
+    --pur: #aa66ff;
+    --r-a: #00ff88;
+    --r-b: #ff6b9d;
+    --r-c: #4488ff;
+    --mono: 'JetBrains Mono', monospace;
+    --disp: 'Outfit', sans-serif;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html { scroll-behavior:smooth; background:var(--bg); color:var(--t1); }
+  body { font-family:var(--mono); font-size:14px; line-height:1.7; overflow-x:hidden; }
+  ::selection { background:var(--grn); color:var(--bg); }
+  body::after { content:''; position:fixed; inset:0; pointer-events:none; z-index:9999; background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.03) 2px,rgba(0,0,0,0.03) 4px); }
+
+  /* ═══ HERO ═══ */
+  .hero { min-height:100vh; display:flex; flex-direction:column; justify-content:center; padding:80px 60px; position:relative; overflow:hidden; }
+  .hero::before { content:''; position:absolute; top:-200px; right:-200px; width:600px; height:600px; background:radial-gradient(circle,var(--grn-g) 0%,transparent 70%); animation:glow 8s ease-in-out infinite; }
+  @keyframes glow { 0%,100%{opacity:.4;transform:scale(1)} 50%{opacity:.7;transform:scale(1.1)} }
+  .badge { font-size:11px; font-weight:500; letter-spacing:3px; text-transform:uppercase; color:var(--grn); margin-bottom:32px; display:flex; align-items:center; gap:10px; }
+  .badge::before { content:''; width:8px; height:8px; background:var(--grn); border-radius:50%; animation:blink 2s step-end infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+  .hero h1 { font-family:var(--disp); font-size:clamp(56px,8vw,120px); font-weight:900; line-height:.95; letter-spacing:-3px; margin-bottom:32px; }
+  .hero h1 em { font-style:normal; color:var(--grn); text-shadow:0 0 60px var(--grn-g); }
+  .hero-sub { font-size:16px; font-weight:300; color:var(--t2); max-width:620px; line-height:1.8; margin-bottom:20px; }
+  .hero-sub strong { color:var(--t1); font-weight:500; }
+  .hero-principle { font-size:13px; color:var(--grn2); border-left:2px solid var(--grn); padding-left:16px; margin-bottom:48px; max-width:520px; line-height:1.7; }
+  .keys { display:flex; gap:10px; flex-wrap:wrap; }
+  .k { display:inline-flex; align-items:center; gap:8px; padding:7px 14px; background:var(--bg3); border:1px solid var(--brd); border-radius:6px; font-size:11px; color:var(--t2); }
+  .k kbd { font-weight:600; color:var(--grn); background:var(--bg); padding:2px 7px; border-radius:3px; border:1px solid var(--brd); font-size:10px; }
+
+  /* ═══ SECTIONS ═══ */
+  section { padding:100px 60px; border-top:1px solid var(--brd); }
+  .sl { font-size:10px; font-weight:600; letter-spacing:4px; text-transform:uppercase; color:var(--t3); margin-bottom:16px; }
+  .sh { font-family:var(--disp); font-size:clamp(32px,4vw,52px); font-weight:800; letter-spacing:-1px; margin-bottom:20px; line-height:1.1; }
+  .sd { font-size:14px; color:var(--t2); max-width:560px; margin-bottom:56px; line-height:1.8; }
+
+  /* ═══ PROBLEMS ═══ */
+  .pgrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:2px; }
+  .pcard { background:var(--bg3); padding:32px 28px; position:relative; overflow:hidden; transition:background .3s; }
+  .pcard:hover { background:var(--bg4); }
+  .pcard .pn { font-family:var(--disp); font-size:56px; font-weight:900; color:var(--bg2); position:absolute; top:-6px; right:10px; -webkit-text-stroke:1px var(--brd); }
+  .pcard h3 { font-family:var(--disp); font-size:16px; font-weight:700; margin-bottom:10px; color:var(--red); }
+  .pcard p { font-size:13px; color:var(--t2); line-height:1.7; }
+
+  /* ═══ TERMINAL MOCKUP ═══ */
+  .mock { background:var(--bg2); border:1px solid var(--brd); border-radius:8px; overflow:hidden; max-width:1100px; margin:0 auto; font-family:var(--mono); font-size:13px; box-shadow:0 40px 100px rgba(0,0,0,.5); }
+  .mock-bar { display:flex; align-items:center; gap:8px; padding:12px 16px; background:var(--bg3); border-bottom:1px solid var(--brd); }
+  .dot { width:12px; height:12px; border-radius:50%; }
+  .dot.r{background:#ff5f57} .dot.y{background:#febc2e} .dot.g{background:#28c840}
+  .mock-bar span { margin-left:12px; font-size:12px; color:var(--t3); }
+  .mock-body { display:grid; grid-template-columns:280px 1fr; min-height:520px; }
+  .mock-foot { display:flex; justify-content:space-between; padding:8px 16px; background:var(--bg3); border-top:1px solid var(--brd); font-size:11px; color:var(--t3); }
+  .mock-foot kbd { font-weight:600; color:var(--grn2); }
+
+  /* Queue sidebar */
+  .qp { border-right:1px solid var(--brd); padding:12px; display:flex; flex-direction:column; gap:4px; overflow-y:auto; }
+  .ql { font-size:9px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:var(--t3); padding:10px 4px 4px; }
+  .qi { padding:10px 12px; border-radius:4px; background:var(--bg3); border:1px solid transparent; border-left:3px solid transparent; cursor:pointer; transition:all .15s; }
+  .qi:hover { border-color:var(--brd2); background:var(--bg4); }
+  .qi.act { border-color:var(--grn); background:rgba(0,255,136,.05); }
+  .qi.ca { border-left-color:var(--r-a); } .qi.cb { border-left-color:var(--r-b); } .qi.cc { border-left-color:var(--r-c); }
+  .qi-n { font-size:12px; font-weight:600; margin-bottom:3px; }
+  .qi-m { font-size:10px; color:var(--t3); display:flex; align-items:center; gap:6px; }
+  .qi-s { width:6px; height:6px; border-radius:50%; display:inline-block; }
+  .qi-s.run{background:var(--grn);box-shadow:0 0 6px var(--grn)} .qi-s.wait{background:var(--amb);animation:blink 1.5s step-end infinite} .qi-s.que{background:var(--t3)} .qi-s.done{background:var(--blu)}
+
+  /* Sub-agents */
+  .sub-wrap { margin-top:6px; padding-left:8px; border-left:1px solid var(--brd); display:flex; flex-direction:column; gap:3px; }
+  .sub { padding:6px 10px; border-radius:3px; font-size:11px; display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,.02); }
+  .sub:hover { background:rgba(255,255,255,.04); }
+  .sub-n { color:var(--t2); }
+  .sub-st { font-size:9px; font-weight:600; padding:2px 6px; border-radius:3px; letter-spacing:.5px; }
+  .sub-st.s-w { color:var(--amb); background:var(--amb-g); }
+  .sub-st.s-a { color:var(--grn); background:var(--grn-g); }
+  .sub-st.s-d { color:var(--blu); background:var(--blu-g); }
+  .sub-st.s-q { color:var(--t3); background:rgba(85,85,106,.1); }
+
+  /* Inline permission in queue */
+  .qperm { padding:7px 9px; border-radius:4px; background:rgba(255,170,0,.08); border:1px solid rgba(255,170,0,.2); margin-top:4px; }
+  .qperm-l { font-size:9px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:var(--amb); margin-bottom:3px; }
+  .qperm-c { font-size:10px; color:var(--t2); margin-bottom:6px; }
+  .qperm-a { display:flex; gap:5px; }
+  .btn-y { font-family:var(--mono); font-size:10px; font-weight:600; padding:3px 10px; border-radius:3px; border:none; cursor:pointer; background:var(--grn); color:var(--bg); }
+  .btn-n { font-family:var(--mono); font-size:10px; font-weight:600; padding:3px 10px; border-radius:3px; border:1px solid var(--brd); background:transparent; color:var(--t3); cursor:pointer; }
+
+  /* Main panel */
+  .mp { padding:20px 24px; display:flex; flex-direction:column; }
+  .mp-h { display:flex; justify-content:space-between; align-items:center; padding-bottom:14px; margin-bottom:14px; border-bottom:1px solid var(--brd); }
+  .mp-t { font-size:13px; font-weight:600; }
+  .mp-b { font-size:11px; color:var(--pur); }
+  .out { font-size:12px; line-height:2; color:var(--t2); flex:1; }
+  .out .og{color:var(--grn2)} .out .oa{color:var(--amb)} .out .ow{color:var(--t1)} .out .om{color:var(--t3)} .out .or{color:var(--red)}
+  .cur { display:inline-block; width:8px; height:16px; background:var(--grn); vertical-align:text-bottom; animation:blink 1s step-end infinite; }
+
+  /* Double-enter callout */
+  .de-callout { max-width:1100px; margin:32px auto 0; padding:20px 28px; background:var(--bg3); border:1px solid var(--grn); border-radius:8px; display:flex; align-items:center; gap:20px; box-shadow:0 0 30px var(--grn-g); }
+  .de-keys { display:flex; gap:4px; flex-shrink:0; }
+  .de-key { width:40px; height:40px; display:flex; align-items:center; justify-content:center; background:var(--bg); border:1px solid var(--brd); border-radius:6px; font-size:11px; font-weight:700; color:var(--grn); }
+  .de-text { font-size:13px; color:var(--t2); line-height:1.6; }
+  .de-text strong { color:var(--t1); font-weight:500; }
+
+  /* ═══ VIEWS ═══ */
+  .vgrid { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; margin-bottom:48px; }
+  .vc { background:var(--bg3); padding:20px 14px; text-align:center; cursor:pointer; transition:all .2s; border:1px solid transparent; }
+  .vc:hover { background:var(--bg4); border-color:var(--brd2); }
+  .vc.sel { border-color:var(--grn); background:rgba(0,255,136,.04); }
+  .vc kbd { font-family:var(--mono); font-size:10px; font-weight:600; color:var(--grn); background:var(--bg); padding:2px 8px; border-radius:3px; border:1px solid var(--brd); display:inline-block; margin-bottom:10px; }
+  .vc-n { font-family:var(--disp); font-size:13px; font-weight:700; margin-bottom:4px; }
+  .vc-d { font-size:10px; color:var(--t3); line-height:1.4; }
+
+  /* Split mockup (agent focus) */
+  .split-body { display:grid; grid-template-columns:1fr 1fr; min-height:440px; }
+  .split-l { border-right:1px solid var(--brd); padding:16px 20px; }
+  .split-r { padding:16px 20px; }
+  .split-label { font-size:10px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:var(--t3); margin-bottom:12px; }
+  .diff-file { font-size:12px; font-weight:600; color:var(--t1); margin:14px 0 6px; }
+  .diff-file:first-child { margin-top:0; }
+  .diff { font-size:11px; line-height:1.8; }
+  .diff .d-r { color:var(--red); } .diff .d-g { color:var(--grn2); } .diff .d-m { color:var(--t3); }
+
+  /* Master diff */
+  .mdiff-body { padding:20px 24px; min-height:440px; }
+  .mdiff-divider { font-size:12px; font-weight:600; padding:12px 0 8px; margin-top:16px; border-top:1px solid var(--brd); display:flex; align-items:center; gap:10px; }
+  .mdiff-divider:first-child { margin-top:0; border-top:none; }
+  .mdiff-repo { width:8px; height:8px; border-radius:50%; display:inline-block; }
+  .mdiff-stats { font-size:10px; font-weight:400; color:var(--t3); margin-left:auto; }
+
+  /* Planning view */
+  .plan-body { padding:24px 28px; min-height:480px; }
+  .plan-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; padding-bottom:14px; border-bottom:1px solid var(--brd); }
+  .plan-title { font-size:14px; font-weight:600; }
+  .plan-count { font-size:11px; color:var(--t3); }
+  .plan-card { background:var(--bg3); border:1px solid var(--brd); border-radius:6px; padding:24px; margin-bottom:16px; }
+  .plan-label { font-size:9px; font-weight:700; letter-spacing:2px; text-transform:uppercase; margin-bottom:8px; }
+  .plan-label.pl-q { color:var(--amb); }
+  .plan-label.pl-c { color:var(--t3); }
+  .plan-label.pl-s { color:var(--grn2); }
+  .plan-label.pl-i { color:var(--blu); }
+  .plan-text { font-size:13px; color:var(--t2); line-height:1.7; margin-bottom:16px; }
+  .plan-text:last-child { margin-bottom:0; }
+  .plan-q { font-size:15px; color:var(--t1); font-weight:500; }
+  .plan-actions { display:flex; gap:8px; margin-top:16px; }
+  .plan-btn { font-family:var(--mono); font-size:11px; font-weight:500; padding:8px 18px; border-radius:5px; border:1px solid var(--brd); background:transparent; color:var(--t2); cursor:pointer; transition:all .15s; }
+  .plan-btn:hover { border-color:var(--brd2); }
+  .plan-btn.pb-y { border-color:var(--grn); color:var(--grn); }
+  .plan-btn.pb-m { border-color:var(--amb); color:var(--amb); }
+  .plan-btn.pb-n { border-color:var(--red); color:var(--red); }
+  .plan-input { width:100%; background:var(--bg); border:1px solid var(--brd); border-radius:4px; padding:12px 14px; font-family:var(--mono); font-size:12px; color:var(--t2); line-height:1.6; resize:vertical; min-height:60px; margin-top:12px; }
+  .plan-log { margin-top:24px; padding-top:16px; border-top:1px solid var(--brd); }
+  .plan-log-title { font-size:10px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:var(--t3); margin-bottom:10px; }
+  .plan-log-item { font-size:11px; color:var(--t2); padding:4px 0; display:flex; gap:8px; }
+  .plan-log-item .pli-icon { flex-shrink:0; }
+
+  /* ═══ FEATURES ═══ */
+  .fgrid { display:grid; grid-template-columns:repeat(3,1fr); gap:2px; }
+  .fc { background:var(--bg3); padding:36px 28px; transition:background .3s; position:relative; }
+  .fc:hover { background:var(--bg4); }
+  .fc-t { font-size:9px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; padding:2px 7px; border-radius:3px; display:inline-block; margin-bottom:14px; }
+  .fc-t.p0{color:var(--grn);background:var(--grn-g)} .fc-t.p1{color:var(--amb);background:var(--amb-g)} .fc-t.p2{color:var(--blu);background:var(--blu-g)}
+  .fc h3 { font-family:var(--disp); font-size:16px; font-weight:700; margin-bottom:10px; }
+  .fc p { font-size:13px; color:var(--t2); line-height:1.7; }
+
+  /* ═══ HOOKS ═══ */
+  .hooks-grid { display:grid; grid-template-columns:1fr 1fr; gap:40px; align-items:start; }
+  .hooks-prose h3 { font-family:var(--disp); font-size:26px; font-weight:800; margin-bottom:16px; }
+  .hooks-prose p { font-size:13px; color:var(--t2); line-height:1.8; margin-bottom:14px; }
+  .code { background:var(--bg2); border:1px solid var(--brd); border-radius:6px; padding:24px; font-size:12px; line-height:1.9; color:var(--t2); overflow-x:auto; }
+  .code .ck{color:var(--pur)} .code .cs{color:var(--grn2)} .code .cc{color:var(--t3);font-style:italic} .code .cv{color:var(--amb)}
+
+  /* ═══ ARCH ═══ */
+  .arch { max-width:900px; margin:0 auto; }
+  .al { padding:18px 22px; border:1px solid var(--brd); border-radius:6px; margin-bottom:6px; transition:border-color .3s; }
+  .al:hover { border-color:var(--brd2); }
+  .al-t { font-size:10px; font-weight:700; letter-spacing:2px; text-transform:uppercase; margin-bottom:10px; }
+  .al-p { display:flex; flex-wrap:wrap; gap:6px; }
+  .al-m { font-size:11px; padding:5px 12px; background:var(--bg3); border-radius:4px; color:var(--t2); border:1px solid transparent; transition:border-color .15s; }
+  .al-m:hover { border-color:var(--brd); }
+  .al-arr { text-align:center; padding:2px; color:var(--t3); font-size:16px; }
+
+  /* ═══ TIMELINE ═══ */
+  .tl { max-width:700px; }
+  .tl-i { position:relative; margin-bottom:44px; padding-left:36px; }
+  .tl-i::before { content:''; position:absolute; left:0; top:0; bottom:-44px; width:1px; background:var(--brd); }
+  .tl-i:last-child::before { display:none; }
+  .tl-i::after { content:''; position:absolute; left:-5px; top:5px; width:11px; height:11px; border-radius:50%; border:2px solid var(--grn); background:var(--bg); }
+  .tl-i.now::after { background:var(--grn); }
+  .tl-ph { font-size:10px; font-weight:600; letter-spacing:2px; text-transform:uppercase; color:var(--grn); margin-bottom:4px; }
+  .tl-tt { font-family:var(--disp); font-size:20px; font-weight:700; margin-bottom:4px; }
+  .tl-e { font-size:12px; color:var(--amb); font-weight:600; margin-bottom:8px; }
+  .tl-d { font-size:13px; color:var(--t2); line-height:1.7; max-width:500px; }
+
+  .totals { display:grid; grid-template-columns:1fr 1fr; gap:2px; margin-top:56px; }
+  .tot { background:var(--bg3); padding:44px 36px; text-align:center; }
+  .tot-l { font-size:10px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:var(--t3); margin-bottom:10px; }
+  .tot-v { font-family:var(--disp); font-size:48px; font-weight:900; letter-spacing:-2px; }
+  .tot-v.g{color:var(--grn)} .tot-v.a{color:var(--amb)}
+  .tot-s { font-size:12px; color:var(--t3); margin-top:6px; }
+
+  /* ═══ STACK ═══ */
+  .srow { display:flex; gap:2px; margin-bottom:2px; }
+  .sc { flex:1; padding:24px; background:var(--bg3); text-align:center; transition:background .3s; }
+  .sc:hover { background:var(--bg4); }
+  .sc-n { font-family:var(--disp); font-size:15px; font-weight:700; margin-bottom:4px; }
+  .sc-r { font-size:10px; color:var(--t3); }
+
+  /* ═══ FOOTER ═══ */
+  .footer { padding:80px 60px; border-top:1px solid var(--brd); text-align:center; }
+  .footer h2 { font-family:var(--disp); font-size:clamp(28px,4vw,48px); font-weight:900; margin-bottom:16px; letter-spacing:-1px; }
+  .footer h2 em { font-style:normal; color:var(--grn); }
+  .footer p { font-size:14px; color:var(--t3); margin-bottom:32px; }
+  .footer-cmd { display:inline-block; font-size:15px; padding:16px 40px; background:var(--bg3); border:1px solid var(--grn); border-radius:6px; color:var(--grn); box-shadow:0 0 30px var(--grn-g); }
+
+  /* ═══ RESPONSIVE ═══ */
+  @media(max-width:1000px) {
+    .hero,section { padding:60px 24px; }
+    .fgrid { grid-template-columns:1fr; }
+    .vgrid { grid-template-columns:repeat(4,1fr); }
+    .hooks-grid { grid-template-columns:1fr; }
+    .mock-body,.split-body { grid-template-columns:1fr; }
+    .qp { border-right:none; border-bottom:1px solid var(--brd); max-height:300px; }
+    .split-l { border-right:none; border-bottom:1px solid var(--brd); }
+    .totals { grid-template-columns:1fr; }
+    .srow { flex-direction:column; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══ HERO ═══ -->
+<div class="hero">
+  <div class="badge">v2 — Queue-Based Multi-Agent Terminal</div>
+  <h1>Dog<em>pile</em></h1>
+  <p style="font-size:13px;color:var(--t3);margin-bottom:28px;">by <span style="color:var(--t2)">Andrés Canella</span></p>
+  <p class="hero-sub">
+    Agents auto-sort by state. Sub-agents nest under their parents.
+    Permissions resolve inline. A master agent keeps you briefed.
+    <strong>You never search for anything.</strong>
+  </p>
+  <div class="hero-principle">
+    Everything surfaces to you. You never go looking for it. Agents that need input float to the top. Diffs show alongside chat. Architecture decisions queue up for your review. Double-enter advances you through the queue. The interface is a conveyor belt — work arrives, you act, it moves on.
+  </div>
+  <div class="keys">
+    <div class="k"><kbd>↩↩</kbd> jump to next</div>
+    <div class="k"><kbd>⌘1-6</kbd> switch view</div>
+    <div class="k"><kbd>⌘0</kbd> planning</div>
+    <div class="k"><kbd>⌘B</kbd> master brief</div>
+    <div class="k"><kbd>⌘Y</kbd> approve</div>
+    <div class="k"><kbd>⌘N</kbd> new task</div>
+  </div>
+</div>
+
+<!-- ═══ PROBLEM ═══ -->
+<section>
+  <div class="sl">The Problem</div>
+  <div class="sh">12 tabs. Zero visibility.</div>
+  <p class="sd">Running concurrent Claude Code sessions means drowning in tabs, hunting for the one that needs input, and losing track of what's happening across repos.</p>
+  <div class="pgrid">
+    <div class="pcard"><div class="pn">01</div><h3>Tab Chaos</h3><p>6-12+ sessions across repos. Every switch costs 15-30 seconds of re-orientation finding which agent needs you.</p></div>
+    <div class="pcard"><div class="pn">02</div><h3>Permission Dead Time</h3><p>An agent blocks on a permission prompt. You don't notice for 10 minutes. Multiply across every session.</p></div>
+    <div class="pcard"><div class="pn">03</div><h3>No Coordination</h3><p>Agents on the same repo step on each other's files. Commits collide. Merge conflicts pile up.</p></div>
+    <div class="pcard"><div class="pn">04</div><h3>Silent Decisions</h3><p>Agents make 12 architecture choices without asking. You discover 3 were wrong after 2 hours of work.</p></div>
+  </div>
+</section>
+
+<!-- ═══ QUEUE MOCKUP ═══ -->
+<section>
+  <div class="sl">The Interface</div>
+  <div class="sh">Queue-driven. Keyboard-first.</div>
+  <p class="sd">Every agent lives in a priority-sorted queue. Sub-agents nest under their parents. Needs input? Top of the list. Done? Drops to the bottom.</p>
+
+  <div class="mock">
+    <div class="mock-bar">
+      <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+      <span>Dogpile — 3 repos · 7 agents · 5 sub-agents</span>
+    </div>
+    <div class="mock-body">
+      <div class="qp">
+        <div class="ql">⚠ Needs Input</div>
+        <div class="qi act ca">
+          <div class="qi-n">StoreKit 2 Migration</div>
+          <div class="qi-m"><span class="qi-s wait"></span> sub-agent needs permission</div>
+          <div class="sub-wrap">
+            <div class="sub">
+              <span class="sub-n">receipt-validation</span>
+              <span class="sub-st s-w">⚠ PERMIT</span>
+            </div>
+            <div class="sub">
+              <span class="sub-n">product-catalog</span>
+              <span class="sub-st s-a">ACTIVE</span>
+            </div>
+            <div class="sub">
+              <span class="sub-n">schema-migration</span>
+              <span class="sub-st s-d">DONE</span>
+            </div>
+          </div>
+          <div class="qperm">
+            <div class="qperm-l">receipt-validation → Bash</div>
+            <div class="qperm-c">xcodebuild clean -scheme Wakeout</div>
+            <div class="qperm-a"><button class="btn-y">⌘Y</button><button class="btn-n">⌘N</button></div>
+          </div>
+        </div>
+
+        <div class="ql">🔄 Active</div>
+        <div class="qi ca">
+          <div class="qi-n">Onboarding A/B Test</div>
+          <div class="qi-m"><span class="qi-s run"></span> editing PaywallVC — 85%</div>
+        </div>
+        <div class="qi cb">
+          <div class="qi-n">Routine Engine</div>
+          <div class="qi-m"><span class="qi-s run"></span> building generator — 41%</div>
+          <div class="sub-wrap">
+            <div class="sub">
+              <span class="sub-n">exercise-models</span>
+              <span class="sub-st s-a">ACTIVE</span>
+            </div>
+            <div class="sub">
+              <span class="sub-n">test-coverage</span>
+              <span class="sub-st s-q">QUEUED</span>
+            </div>
+          </div>
+        </div>
+        <div class="qi cc">
+          <div class="qi-n">Plaid Sync Layer</div>
+          <div class="qi-m"><span class="qi-s run"></span> writing tests — 67%</div>
+        </div>
+        <div class="qi ca">
+          <div class="qi-n">Analytics Revamp</div>
+          <div class="qi-m"><span class="qi-s run"></span> Amplitude events — 12%</div>
+        </div>
+
+        <div class="ql">💤 Queued</div>
+        <div class="qi ca">
+          <div class="qi-n">Integration Tests</div>
+          <div class="qi-m"><span class="qi-s que"></span> waiting on StoreKit 2</div>
+        </div>
+
+        <div class="ql">✓ Done</div>
+        <div class="qi ca">
+          <div class="qi-n">CI Pipeline Setup</div>
+          <div class="qi-m"><span class="qi-s done"></span> 3 commits — 8m ago</div>
+        </div>
+      </div>
+
+      <div class="mp">
+        <div class="mp-h">
+          <span class="mp-t">StoreKit 2 Migration</span>
+          <span class="mp-b">feature/storekit-migration</span>
+        </div>
+        <div class="out">
+<span class="om">~/wakeout-storekit $</span> <span class="ow">claude</span><br><br>
+<span class="og">⏵</span> <span class="ow">Migrating SubscriptionManager to StoreKit 2...</span><br>
+<span class="om">  Spawned 3 sub-agents: receipt-validation, product-catalog, schema-migration</span><br><br>
+<span class="om">  [receipt-validation]</span> <span class="oa">⚠ Permission required:</span><br>
+<span class="ow">  bash: xcodebuild clean -scheme Wakeout</span><br><br>
+<span class="om">  [product-catalog]</span> <span class="og">Working...</span><br>
+<span class="om">  Edit</span> ProductStore.swift <span class="og">+12 -8</span><br><br>
+<span class="om">  [schema-migration]</span> <span class="og">✓ Complete</span><br>
+<span class="om">  Edit</span> CoreDataModel.xcdatamodeld <span class="og">+3 -1</span><br><br>
+<span class="om">  Approve from sidebar or press</span> <span class="og">⌘Y</span><br>
+<span class="om">  Waiting...</span> <span class="cur"></span>
+        </div>
+      </div>
+    </div>
+    <div class="mock-foot">
+      <div>
+        <kbd>↩↩</kbd> next · <kbd>⌘1-6</kbd> views · <kbd>⌘0</kbd> plan · <kbd>⌘Y</kbd> approve · <kbd>⌘[/]</kbd> cycle
+      </div>
+      <span>4 active · 1 waiting · 1 queued · 1 done · 5 sub-agents</span>
+    </div>
+  </div>
+
+  <div class="de-callout">
+    <div class="de-keys">
+      <div class="de-key">↩</div>
+      <div class="de-key">↩</div>
+    </div>
+    <div class="de-text">
+      <strong>Double-enter to jump.</strong> Press Enter twice from anywhere to jump to the next queue item ready for input — permission, finished agent, or error. Review → act → double-enter → repeat. You never search.
+    </div>
+  </div>
+</section>
+
+<!-- ═══ VIEWS ═══ -->
+<section>
+  <div class="sl">Power Views</div>
+  <div class="sh">Seven modes. One hotkey each.</div>
+  <p class="sd">Every view reshapes the interface around a different decision mode. You switch how you see work, not which tab you're on.</p>
+
+  <div class="vgrid">
+    <div class="vc"><kbd>⌘1</kbd><div class="vc-n">Queue</div><div class="vc-d">Sorted by state. Sub-agents nested.</div></div>
+    <div class="vc"><kbd>⌘2</kbd><div class="vc-n">Repos</div><div class="vc-d">Grouped by repository.</div></div>
+    <div class="vc"><kbd>⌘3</kbd><div class="vc-n">Pending</div><div class="vc-d">Only items needing input.</div></div>
+    <div class="vc"><kbd>⌘4</kbd><div class="vc-n">Master</div><div class="vc-d">Coordinator agent brief.</div></div>
+    <div class="vc sel"><kbd>⌘5</kbd><div class="vc-n">Focus</div><div class="vc-d">Chat + diff split.</div></div>
+    <div class="vc"><kbd>⌘6</kbd><div class="vc-n">Diff</div><div class="vc-d">All changes across agents.</div></div>
+    <div class="vc"><kbd>⌘0</kbd><div class="vc-n">Plan</div><div class="vc-d">Architecture decision queue.</div></div>
+  </div>
+
+  <!-- AGENT FOCUS VIEW -->
+  <div class="mock" style="margin-bottom:32px;">
+    <div class="mock-bar">
+      <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+      <span>⌘5 Agent Focus — StoreKit 2 Migration · ⌘[ prev  ⌘] next</span>
+    </div>
+    <div class="split-body">
+      <div class="split-l">
+        <div class="split-label">Chat</div>
+        <div class="out">
+<span class="og">⏵</span> <span class="ow">Migrating SubscriptionManager to StoreKit 2...</span><br><br>
+<span class="om">  Read</span> SubscriptionManager.swift<br>
+<span class="om">  Read</span> ReceiptValidator.swift<br>
+<span class="om">  Edit</span> SubscriptionManager.swift <span class="og">+47 -23</span><br>
+<span class="om">  Edit</span> ProductStore.swift <span class="og">+12 -8</span><br><br>
+<span class="oa">⚠ Permission required:</span><br>
+<span class="ow">  bash: xcodebuild clean</span><br>
+<span class="om">  Waiting...</span> <span class="cur"></span>
+        </div>
+      </div>
+      <div class="split-r">
+        <div class="split-label">Diff — feature/storekit-migration</div>
+        <div class="diff-file">SubscriptionManager.swift</div>
+        <div class="diff">
+<span class="d-r">- func validateReceipt() {</span><br>
+<span class="d-r">-   let receipt = Bundle.main</span><br>
+<span class="d-r">-     .appStoreReceiptURL</span><br>
+<span class="d-g">+ func validatePurchase(</span><br>
+<span class="d-g">+   _ result: VerificationResult</span><br>
+<span class="d-g">+ ) async throws {</span><br>
+<span class="d-g">+   switch result {</span><br>
+<span class="d-g">+   case .verified(let tx):</span><br>
+<span class="d-g">+     await tx.finish()</span>
+        </div>
+        <div class="diff-file">ProductStore.swift</div>
+        <div class="diff">
+<span class="d-r">- private var products: [SKProduct]</span><br>
+<span class="d-g">+ private var products: [Product]</span><br>
+<span class="d-g">+ func loadProducts() async {</span><br>
+<span class="d-g">+   products = try await Product</span><br>
+<span class="d-g">+     .products(for: productIDs)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MASTER DIFF VIEW -->
+  <div class="mock" style="margin-bottom:32px;">
+    <div class="mock-bar">
+      <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+      <span>⌘6 Master Diff — 5 agents · 14 files changed</span>
+    </div>
+    <div class="mdiff-body">
+      <div class="mdiff-divider" style="border-top:none;">
+        <span class="mdiff-repo" style="background:var(--r-a)"></span> StoreKit 2 Migration
+        <span class="mdiff-stats">4 files · +89 -31</span>
+      </div>
+      <div class="diff-file">SubscriptionManager.swift</div>
+      <div class="diff">
+<span class="d-r">- func validateReceipt() {</span><br>
+<span class="d-g">+ func validatePurchase(_ result: VerificationResult)</span>
+      </div>
+
+      <div class="mdiff-divider">
+        <span class="mdiff-repo" style="background:var(--r-a)"></span> Onboarding A/B Test
+        <span class="mdiff-stats">3 files · +156 -42</span>
+      </div>
+      <div class="diff-file">PaywallViewController.swift</div>
+      <div class="diff">
+<span class="d-g">+ private let variantManager = ABTestVariantManager()</span><br>
+<span class="d-g">+ func loadVariant(_ id: String) async {</span>
+      </div>
+
+      <div class="mdiff-divider">
+        <span class="mdiff-repo" style="background:var(--r-b)"></span> Routine Engine
+        <span class="mdiff-stats">5 files · +247 -0</span>
+      </div>
+      <div class="diff-file">RoutineGenerator.swift <span style="color:var(--grn2)">(new)</span></div>
+      <div class="diff">
+<span class="d-g">+ struct RoutineGenerator {</span><br>
+<span class="d-g">+   func generate(for profile: UserProfile) -> Routine {</span>
+      </div>
+
+      <div class="mdiff-divider">
+        <span class="mdiff-repo" style="background:var(--r-c)"></span> Plaid Sync Layer
+        <span class="mdiff-stats">2 files · +118 -15</span>
+      </div>
+      <div class="diff-file">AccountSync.swift</div>
+      <div class="diff">
+<span class="d-g">+ func syncTransactions(since: Date) async throws {</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- PLANNING VIEW -->
+  <div class="mock">
+    <div class="mock-bar">
+      <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+      <span>⌘0 Planning — Penny Weight AI Architecture · 12 decisions</span>
+    </div>
+    <div class="plan-body">
+      <div class="plan-header">
+        <span class="plan-title">Architecture Decisions</span>
+        <span class="plan-count">4 of 12 · 3 reviewed · 9 remaining</span>
+      </div>
+      <div class="plan-card">
+        <div class="plan-label pl-q">Question</div>
+        <div class="plan-text plan-q">How should client-side encryption keys be managed?</div>
+        <div class="plan-label pl-c">Context</div>
+        <div class="plan-text">The architecture requires zero-liability data handling. Keys must never touch the server. AWS KMS is in the stack but the MCP interface means mutations happen client-side. Two patterns are viable: browser-native SubtleCrypto with keys in IndexedDB, or a local key agent process.</div>
+        <div class="plan-label pl-s">Suggestion</div>
+        <div class="plan-text">Use SubtleCrypto with non-exportable CryptoKey objects stored in IndexedDB. Keys never leave the browser's secure context. AWS KMS handles key wrapping for backup/recovery. No local agent needed for v1.</div>
+        <div class="plan-actions">
+          <button class="plan-btn pb-y">✓ Use suggestion</button>
+          <button class="plan-btn pb-m">✎ Modify</button>
+          <button class="plan-btn pb-n">✕ Reject</button>
+        </div>
+        <textarea class="plan-input" placeholder="Your modification or instruction...">Use SubtleCrypto but add a local key agent for v1. We need offline access for the MCP interface and IndexedDB alone won't cover that.</textarea>
+      </div>
+      <div class="plan-log">
+        <div class="plan-log-title">Decision Log</div>
+        <div class="plan-log-item"><span class="pli-icon" style="color:var(--grn2)">✓</span> 1. Database engine → DynamoDB (accepted)</div>
+        <div class="plan-log-item"><span class="pli-icon" style="color:var(--amb)">✎</span> 2. Auth provider → Clerk (modified: add MFA)</div>
+        <div class="plan-log-item"><span class="pli-icon" style="color:var(--grn2)">✓</span> 3. API pattern → MCP-first, REST read-only (accepted)</div>
+        <div class="plan-log-item"><span class="pli-icon" style="color:var(--amb)">⏳</span> 4. Encryption keys → (current)</div>
+        <div class="plan-log-item"><span class="pli-icon" style="color:var(--t3)">○</span> 5. Backup strategy</div>
+        <div class="plan-log-item"><span class="pli-icon" style="color:var(--t3)">○</span> 6. Rate limiting approach</div>
+        <div class="plan-log-item"><span class="pli-icon" style="color:var(--t3)">○</span> 7-12. ...</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ FEATURES ═══ -->
+<section>
+  <div class="sl">Feature Set</div>
+  <div class="sh">Built for throughput.</div>
+  <p class="sd">Every feature reduces the time between an agent finishing and you acting on it.</p>
+  <div class="fgrid">
+    <div class="fc"><div class="fc-t p0">P0</div><h3>Queue System</h3><p>Real-time state detection via hooks. Auto-sort by priority: INPUT → ACTIVE → QUEUED → DONE.</p></div>
+    <div class="fc"><div class="fc-t p0">P0</div><h3>Nested Sub-Agents</h3><p>Sub-agents indented under parents. Auto-sort within their group by state. Permissions surface inline on the parent card.</p></div>
+    <div class="fc"><div class="fc-t p0">P0</div><h3>Double-Enter Jump</h3><p>Press ↩↩ from anywhere to jump to the next item ready for input. Review → act → jump → repeat.</p></div>
+    <div class="fc"><div class="fc-t p0">P0</div><h3>Inline Permissions</h3><p>PreToolUse hooks intercept requests. Approve/deny from the sidebar. Batch approve by pattern.</p></div>
+    <div class="fc"><div class="fc-t p0">P0</div><h3>Task Identity</h3><p>Persistent meaningful name + repo color coding at creation. Visible in every view.</p></div>
+    <div class="fc"><div class="fc-t p0">P0</div><h3>Agent Focus</h3><p>Chat on the left, live git diff on the right. See conversation and code changes simultaneously.</p></div>
+    <div class="fc"><div class="fc-t p0">P0</div><h3>Master Diff</h3><p>Aggregate diff across all agents/worktrees. Scroll through all changes, separated by task dividers.</p></div>
+    <div class="fc"><div class="fc-t p0">P0</div><h3>Planning View</h3><p>Architecture decisions as a form-based queue. Agent surfaces choices for your review instead of deciding silently.</p></div>
+    <div class="fc"><div class="fc-t p0">P0</div><h3>Worktree Automation</h3><p>New task → git worktree + branch + CLAUDE.md. Done → merge/rebase/archive. Zero manual git.</p></div>
+    <div class="fc"><div class="fc-t p1">P1</div><h3>Master Agent</h3><p>Coordinator session with cross-agent awareness. Routes messages. Provides live briefs on demand.</p></div>
+    <div class="fc"><div class="fc-t p1">P1</div><h3>Task Dependencies</h3><p>Dependent tasks stay queued until dependencies resolve. Visual dependency graph.</p></div>
+    <div class="fc"><div class="fc-t p2">P2</div><h3>Cost Tracking</h3><p>Token usage per agent, per project. Running estimate in the status bar.</p></div>
+  </div>
+</section>
+
+<!-- ═══ HOOKS ═══ -->
+<section>
+  <div class="sl">Core Mechanism</div>
+  <div class="sh">Hooks, not parsing.</div>
+  <div class="hooks-grid">
+    <div class="hooks-prose">
+      <h3>State detection via Claude Code hooks</h3>
+      <p>Dogpile uses Claude Code's native hook system. Each agent emits structured JSON events on lifecycle transitions — PreToolUse, PostToolUse, Notification, Stop.</p>
+      <p>Hooks write to a shared event bus via SQLite. Sub-agent events include the parent session ID so Dogpile nests them under the right parent and sorts them within their group.</p>
+      <p>Permission interception: PreToolUse fires before every tool call with tool name and parameters. Dogpile surfaces it inline on the parent's queue card. The hook's response controls whether the tool proceeds.</p>
+    </div>
+    <div class="code">
+<span class="cc">// .claude/hooks.json</span><br>
+{<br>
+&nbsp;&nbsp;<span class="ck">"hooks"</span>: {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="ck">"PreToolUse"</span>: [{<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="ck">"command"</span>: <span class="cs">"dogpile emit pre-tool"</span>,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="ck">"timeout"</span>: <span class="cv">30000</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;}],<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="ck">"PostToolUse"</span>: [{<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="ck">"command"</span>: <span class="cs">"dogpile emit post-tool"</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;}],<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="ck">"Notification"</span>: [{<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="ck">"command"</span>: <span class="cs">"dogpile emit notify"</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;}],<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="ck">"Stop"</span>: [{<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="ck">"command"</span>: <span class="cs">"dogpile emit stop"</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;}]<br>
+&nbsp;&nbsp;}<br>
+}<br><br>
+<span class="cc">// Sub-agent event includes parent ID</span><br>
+<span class="cc">// → nested under parent in queue</span><br>
+<span class="cc">// → sorted within parent's group</span><br>
+<span class="cc">// → permission card on parent card</span>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ ARCHITECTURE ═══ -->
+<section>
+  <div class="sl">Architecture</div>
+  <div class="sh">Native Swift. No Electron.</div>
+  <p class="sd">AppKit for the UI. libghostty or SwiftTerm for PTY. SQLite for the event bus. fsevents for live diffs.</p>
+  <div class="arch">
+    <div class="al"><div class="al-t" style="color:var(--grn)">UI — AppKit</div><div class="al-p"><span class="al-m">QueueSidebarView</span><span class="al-m">SubAgentRenderer</span><span class="al-m">DiffPanelView</span><span class="al-m">PlanningFormView</span><span class="al-m">PermissionCardView</span><span class="al-m">ViewSwitcher</span><span class="al-m">HotkeyManager</span></div></div>
+    <div class="al-arr">↕</div>
+    <div class="al"><div class="al-t" style="color:var(--amb)">Session Manager</div><div class="al-p"><span class="al-m">PTYController</span><span class="al-m">SubAgentTracker</span><span class="al-m">SessionPersistence</span><span class="al-m">PermissionInterceptor</span><span class="al-m">ContextMonitor</span></div></div>
+    <div class="al-arr">↕</div>
+    <div class="al"><div class="al-t" style="color:var(--blu)">Event Bus — SQLite</div><div class="al-p"><span class="al-m">HookEventIngest</span><span class="al-m">StateDeriver</span><span class="al-m">PrioritySorter</span><span class="al-m">ParentChildMapper</span><span class="al-m">DependencyGraph</span></div></div>
+    <div class="al-arr">↕</div>
+    <div class="al"><div class="al-t" style="color:var(--grn2)">Diff Engine</div><div class="al-p"><span class="al-m">GitWorktreeWatcher</span><span class="al-m">PerAgentDiff</span><span class="al-m">AggregateDiff</span><span class="al-m">LiveDiffStream</span></div></div>
+    <div class="al-arr">↕</div>
+    <div class="al"><div class="al-t" style="color:var(--pur)">Worktree Manager</div><div class="al-p"><span class="al-m">GitWorktreeController</span><span class="al-m">BranchNamingPolicy</span><span class="al-m">CLAUDEmdGenerator</span><span class="al-m">MergeCoordinator</span></div></div>
+    <div class="al-arr">↕</div>
+    <div class="al"><div class="al-t" style="color:var(--red)">Master Agent + Planning</div><div class="al-p"><span class="al-m">StatusFeed</span><span class="al-m">MessageRouter</span><span class="al-m">BriefGenerator</span><span class="al-m">PlanningDecisionParser</span><span class="al-m">DecisionExporter</span></div></div>
+  </div>
+</section>
+
+<!-- ═══ TIMELINE ═══ -->
+<section>
+  <div class="sl">Build Timeline</div>
+  <div class="sh">Agent-accelerated estimates.</div>
+  <p class="sd">Built with Claude Code as primary developer. 3-6 concurrent sessions during development.</p>
+  <div class="tl">
+    <div class="tl-i now"><div class="tl-ph">Phase 1</div><div class="tl-tt">Core Terminal + Queue</div><div class="tl-e">1–2 weeks</div><div class="tl-d">PTY integration. Queue sidebar with nested sub-agents. Task identity with persistent naming and repo colors. Double-enter navigation. Session persistence.</div></div>
+    <div class="tl-i"><div class="tl-ph">Phase 2</div><div class="tl-tt">Hooks + Permissions</div><div class="tl-e">3–5 days</div><div class="tl-d">Hook integration. SQLite event bus. Auto-state detection. Sub-agent parent-child mapping. Inline permission cards with approve/deny.</div></div>
+    <div class="tl-i"><div class="tl-ph">Phase 3</div><div class="tl-tt">Focus + Diff Views</div><div class="tl-e">1 week</div><div class="tl-d">Agent Focus (chat + diff split). Master Diff (aggregate). Live diff engine with fsevents per worktree.</div></div>
+    <div class="tl-i"><div class="tl-ph">Phase 4</div><div class="tl-tt">Worktree + Planning</div><div class="tl-e">1 week</div><div class="tl-d">Worktree automation. Planning View with decision queue forms. Decision export as markdown.</div></div>
+    <div class="tl-i"><div class="tl-ph">Phase 5</div><div class="tl-tt">Master Agent</div><div class="tl-e">1–2 weeks</div><div class="tl-d">Coordinator session. Status feed bridge. Message routing. On-demand briefs. Task dependencies.</div></div>
+    <div class="tl-i"><div class="tl-ph">Phase 6</div><div class="tl-tt">Polish</div><div class="tl-e">1 week</div><div class="tl-d">Cost tracking. Session history. Search. Context refresh. Keyboard shortcut customization.</div></div>
+  </div>
+  <div class="totals">
+    <div class="tot"><div class="tot-l">MVP — Phases 1+2</div><div class="tot-v g">~2.5 wk</div><div class="tot-s">Queue + sub-agents + permissions + double-enter</div></div>
+    <div class="tot"><div class="tot-l">Full Build</div><div class="tot-v a">5–8 wk</div><div class="tot-s">All views, master agent, planning, diff engine</div></div>
+  </div>
+</section>
+
+<!-- ═══ STACK ═══ -->
+<section>
+  <div class="sl">Stack</div>
+  <div class="sh">Native. Fast. No compromise.</div>
+  <div class="srow">
+    <div class="sc"><div class="sc-n">Swift</div><div class="sc-r">Language</div></div>
+    <div class="sc"><div class="sc-n">AppKit</div><div class="sc-r">UI Framework</div></div>
+    <div class="sc"><div class="sc-n">libghostty</div><div class="sc-r">Terminal / PTY</div></div>
+  </div>
+  <div class="srow">
+    <div class="sc"><div class="sc-n">SQLite</div><div class="sc-r">Event Bus</div></div>
+    <div class="sc"><div class="sc-n">Claude Hooks</div><div class="sc-r">State Detection</div></div>
+    <div class="sc"><div class="sc-n">fsevents</div><div class="sc-r">Live Diffs</div></div>
+  </div>
+  <div class="srow">
+    <div class="sc"><div class="sc-n">Git Worktrees</div><div class="sc-r">Branch Isolation</div></div>
+    <div class="sc"><div class="sc-n">Unix Sockets</div><div class="sc-r">IPC</div></div>
+    <div class="sc"><div class="sc-n">cmux API</div><div class="sc-r">Phase A Bridge</div></div>
+  </div>
+</section>
+
+<!-- ═══ STRATEGY ═══ -->
+<section>
+  <div class="sl">Product Strategy</div>
+  <div class="sh">Companion first. Terminal second.</div>
+  <p class="sd">Validate the queue system before building the terminal.</p>
+  <div class="pgrid" style="grid-template-columns:1fr 1fr;">
+    <div class="pcard" style="border-left:3px solid var(--grn);">
+      <h3 style="color:var(--grn);">Phase A: Companion</h3>
+      <p>Standalone queue window alongside cmux. No terminal embedding. Talks to cmux via socket API. Validates queue, sub-agent nesting, double-enter, and permission flow through daily use. ~10-14 days.</p>
+    </div>
+    <div class="pcard" style="border-left:3px solid var(--amb);">
+      <h3 style="color:var(--amb);">Phase B: Terminal</h3>
+      <p>Embed libghostty (using cmux source as reference). Add Agent Focus, Master Diff, and Planning views. All queue logic from Phase A carries forward. cmux removed from stack.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ FOOTER ═══ -->
+<div class="footer">
+  <h2>Stop managing tabs.<br>Start managing <em>agents</em>.</h2>
+  <p>Built by <strong style="color:var(--t1)">Andrés Canella</strong> — UX entrepreneur, co-founder of Wakeout (Apple's iPhone App of the Year), who runs 12+ agent sessions daily and got tired of the chaos.</p>
+  <div class="footer-cmd">$ dogpile init</div>
+</div>
+
+</body>
+</html>
