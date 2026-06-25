@@ -3,7 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dogpile v2 — Queue-Based Multi-Agent Terminal</title>
+<title>Dogpile — Queue-Based Multi-Agent Terminal</title>
+
+<!-- Open Graph -->
+<meta property="og:title" content="Dogpile — Queue-Based Multi-Agent Terminal">
+<meta property="og:description" content="Agents auto-sort by state. Sub-agents nest under parents. Permissions resolve inline. You never search for anything.">
+<meta property="og:url" content="https://andrescanella.github.io/dogpile/">
+<meta property="og:type" content="website">
+
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Dogpile — Queue-Based Multi-Agent Terminal">
+<meta name="twitter:description" content="Agents auto-sort by state. Sub-agents nest under parents. Permissions resolve inline. You never search for anything.">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -39,7 +50,7 @@
   body::after { content:''; position:fixed; inset:0; pointer-events:none; z-index:9999; background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.03) 2px,rgba(0,0,0,0.03) 4px); }
 
   /* ═══ HERO ═══ */
-  .hero { min-height:100vh; display:flex; flex-direction:column; justify-content:center; padding:80px 60px; position:relative; overflow:hidden; }
+  .hero { padding:120px 60px 80px; position:relative; overflow:hidden; }
   .hero::before { content:''; position:absolute; top:-200px; right:-200px; width:600px; height:600px; background:radial-gradient(circle,var(--grn-g) 0%,transparent 70%); animation:glow 8s ease-in-out infinite; }
   @keyframes glow { 0%,100%{opacity:.4;transform:scale(1)} 50%{opacity:.7;transform:scale(1.1)} }
   .badge { font-size:11px; font-weight:500; letter-spacing:3px; text-transform:uppercase; color:var(--grn); margin-bottom:32px; display:flex; align-items:center; gap:10px; }
